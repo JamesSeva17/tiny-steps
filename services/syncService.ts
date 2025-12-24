@@ -2,11 +2,10 @@
 import { SyncData } from "../types";
 
 /**
- * kvdb.io requires a valid bucket ID. 
- * If you get 404s, it usually means the bucket is invalid or has expired.
- * We'll use a standard public bucket prefix.
+ * kvdb.io bucket IDs must be valid identifiers.
+ * Using a 20-character alphanumeric string as the bucket ID.
  */
-const BUCKET_ID = "TSteps_" + "v1_public_bucket"; // Prefixed to be safer
+const BUCKET_ID = "8K2m7P9n4Q1r5V3z6X0y";
 const KV_API_BASE = `https://kvdb.io/${BUCKET_ID}`;
 
 export const syncService = {
@@ -46,10 +45,10 @@ export const syncService = {
       const response = await fetch(`${KV_API_BASE}/${key}`);
       if (!response.ok) {
         if (response.status === 404) {
-          console.log("Key not found in cloud - this is normal for first-time sync.");
-        } else {
-          console.error(`Cloud pull failed with status ${response.status}`);
+          // Normal case: key exists but bucket/key combination is new
+          return null;
         }
+        console.error(`Cloud pull failed with status ${response.status}`);
         return null;
       }
       return await response.json();

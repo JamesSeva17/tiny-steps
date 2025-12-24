@@ -50,7 +50,6 @@ const Dashboard: React.FC<DashboardProps> = ({ babyName, entries, types, onSyncN
   const [timeFilter, setTimeFilter] = useState<TimeFilter>('today');
   const [selectedActivityIds, setSelectedActivityIds] = useState<string[]>([]);
 
-  // Real-time update for "Time Since" counters
   const [, setTick] = useState(0);
   useEffect(() => {
     const timer = setInterval(() => setTick(t => t + 1), 60000);
@@ -124,21 +123,29 @@ const Dashboard: React.FC<DashboardProps> = ({ babyName, entries, types, onSyncN
             {babyName ? `${babyName}'s Dashboard` : "Baby's Dashboard"} 👋
           </h2>
           <div className="flex items-center space-x-2 mt-1">
-            {syncKey && (
-              <span className="text-[10px] font-bold text-indigo-400 uppercase tracking-tight flex items-center">
+            {syncKey ? (
+              <span className="text-[10px] font-bold text-indigo-400 uppercase tracking-tight flex items-center bg-indigo-50 px-2 py-0.5 rounded-full">
                 <span className={`w-1.5 h-1.5 rounded-full mr-1.5 ${isSyncing ? 'bg-amber-400 animate-pulse' : 'bg-emerald-400'}`}></span>
-                {isSyncing ? 'Syncing...' : lastSyncTime ? `Synced at ${lastSyncTime}` : 'Cloud Ready'}
+                {isSyncing ? 'Syncing...' : lastSyncTime ? `Synced at ${lastSyncTime}` : 'Cloud Connected'}
               </span>
+            ) : (
+              <button
+                onClick={() => navigate('/settings')}
+                className="text-[10px] font-bold text-slate-400 uppercase tracking-tight flex items-center hover:text-indigo-500 transition"
+              >
+                <i className="fa-solid fa-cloud-arrow-up mr-1.5"></i>
+                Set up Cloud Sync
+              </button>
             )}
           </div>
         </div>
         <div className="flex items-center space-x-3">
-          {syncKey && onSyncNow && (
+          {onSyncNow && (
             <button
               onClick={() => onSyncNow()}
-              disabled={isSyncing}
-              className="bg-white border border-slate-200 text-slate-600 p-2.5 rounded-xl hover:bg-slate-50 transition active:scale-95 disabled:opacity-50 shadow-sm"
-              title="Sync now"
+              disabled={isSyncing || !syncKey}
+              className={`bg-white border border-slate-200 text-slate-600 p-2.5 rounded-xl transition active:scale-95 disabled:opacity-30 shadow-sm ${!syncKey ? 'hidden' : 'flex'}`}
+              title={syncKey ? "Sync with Cloud" : "Set up Sync in Settings"}
             >
               <i className={`fa-solid fa-arrows-rotate ${isSyncing ? 'fa-spin text-indigo-500' : ''}`}></i>
             </button>
