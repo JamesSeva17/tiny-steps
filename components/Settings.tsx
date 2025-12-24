@@ -42,15 +42,36 @@ const Settings: React.FC<SettingsProps> = ({ babyName, onUpdateBabyName, types, 
     setUnit('');
   };
 
-  const generateNewKey = () => {
-    const newKey = syncService.generateKey();
-    setSyncKey(newKey);
-    localStorage.setItem('tiny_steps_sync_key', newKey);
+  const createCloudBin = async () => {
+    if (isSyncing) return;
+    setIsSyncing(true);
+    setSyncStatus('idle');
+
+    // JSONBin generates IDs on the server, so we do an initial push
+    const newId = await syncService.push("", {
+      entries,
+      types,
+      babyName,
+      lastUpdated: Date.now()
+    });
+
+    if (newId) {
+      setSyncKey(newId);
+      localStorage.setItem('tiny_steps_sync_key', newId);
+      localStorage.setItem('tiny_steps_last_sync', Date.now().toString());
+      setSyncStatus('success');
+    } else {
+      setSyncStatus('error');
+      alert("Failed to initialize cloud storage. Ensure your API Key is valid.");
+    }
+    setIsSyncing(false);
+    setTimeout(() => setSyncStatus('idle'), 3000);
   };
 
   const copyKeyToClipboard = () => {
+    if (!syncKey) return;
     navigator.clipboard.writeText(syncKey);
-    alert("Sync Key copied! Use this to sync with other device.");
+    alert("Sync Bin ID copied! Share this with your partner.");
   };
 
   const exportToCSV = () => {
@@ -82,26 +103,29 @@ const Settings: React.FC<SettingsProps> = ({ babyName, onUpdateBabyName, types, 
 
   const handlePush = async () => {
     if (!syncKey) {
-      alert("Please enter or generate a sync key first.");
+      await createCloudBin();
       return;
     }
     setIsSyncing(true);
     setSyncStatus('idle');
-    const success = await syncService.push(syncKey, { entries, types, babyName, lastUpdated: Date.now() });
+    const resultId = await syncService.push(syncKey, { entries, types, babyName, lastUpdated: Date.now() });
+    const success = !!resultId;
     setSyncStatus(success ? 'success' : 'error');
     setIsSyncing(false);
     if (success) {
       localStorage.setItem('tiny_steps_last_sync', Date.now().toString());
+    } else {
+      alert("Sync Push failed. Verify your internet connection and API status.");
     }
     setTimeout(() => setSyncStatus('idle'), 4000);
   };
 
   const handlePull = async () => {
     if (!syncKey) {
-      alert("Please enter a sync key first.");
+      alert("Please enter a Sync Bin ID first.");
       return;
     }
-    if (!confirm("This will overwrite your local data with cloud data. Continue?")) return;
+    if (!confirm("Overwrite local data with cloud data?")) return;
     setIsSyncing(true);
     setSyncStatus('idle');
     const data = await syncService.pull(syncKey);
@@ -110,7 +134,7 @@ const Settings: React.FC<SettingsProps> = ({ babyName, onUpdateBabyName, types, 
       setSyncStatus('success');
     } else {
       setSyncStatus('error');
-      alert("No data found for this key. Try saving to cloud from the other device first!");
+      alert("No data found for this ID. Check the ID and try again.");
     }
     setIsSyncing(false);
     setTimeout(() => setSyncStatus('idle'), 4000);
@@ -120,7 +144,7 @@ const Settings: React.FC<SettingsProps> = ({ babyName, onUpdateBabyName, types, 
     <div className="space-y-8 pb-12">
       <header>
         <h2 className="text-2xl font-bold text-slate-800">Settings</h2>
-        <p className="text-slate-500">Configure your baby's profile and cloud sync.</p>
+        <p className="text-slate-500">Profile and JSONBin.io Cloud Sync</p>
       </header>
 
       <section className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
@@ -140,7 +164,7 @@ const Settings: React.FC<SettingsProps> = ({ babyName, onUpdateBabyName, types, 
           className="mt-4 text-xs font-bold text-indigo-600 flex items-center space-x-2 hover:underline"
         >
           <i className="fa-solid fa-file-csv text-lg"></i>
-          <span>Export all logs as CSV</span>
+          <span>Export logs to CSV</span>
         </button>
       </section>
 
@@ -151,33 +175,34 @@ const Settings: React.FC<SettingsProps> = ({ babyName, onUpdateBabyName, types, 
 
         <div className="flex items-center justify-between mb-6 relative z-10">
           <div className="flex items-center space-x-4">
-            <div className={`w-12 h-12 ${syncStatus === 'error' ? 'bg-rose-500' : syncStatus === 'success' ? 'bg-emerald-500' : 'bg-indigo-600'} rounded-2xl flex items-center justify-center transition-colors`}>
+            <div className={`w-12 h-12 ${syncStatus === 'error' ? 'bg-rose-500' : syncStatus === 'success' ? 'bg-emerald-500' : 'bg-indigo-600'} rounded-2xl flex items-center justify-center transition-colors shadow-lg shadow-indigo-500/20`}>
               {isSyncing ? <i className="fa-solid fa-spinner fa-spin text-xl"></i> :
                 syncStatus === 'success' ? <i className="fa-solid fa-check text-xl"></i> :
                   syncStatus === 'error' ? <i className="fa-solid fa-triangle-exclamation text-xl"></i> :
                     <i className="fa-solid fa-cloud text-xl"></i>}
             </div>
             <div>
-              <h3 className="text-xl font-bold">Sync ID</h3>
-              <p className="text-slate-400 text-xs mt-1">Sync with other device.</p>
+              <h3 className="text-xl font-bold">Partner Sync</h3>
+              <p className="text-slate-400 text-xs mt-1">Shared JSONBin.io storage.</p>
             </div>
           </div>
           <div className="flex space-x-2">
             {!syncKey && (
               <button
-                onClick={generateNewKey}
-                className="text-[10px] font-bold bg-white/10 hover:bg-white/20 px-3 py-1.5 rounded-lg border border-white/10 uppercase tracking-widest"
+                onClick={createCloudBin}
+                disabled={isSyncing}
+                className="text-[10px] font-bold bg-white/10 hover:bg-white/20 px-3 py-1.5 rounded-lg border border-white/10 uppercase tracking-widest transition-all disabled:opacity-50"
               >
-                Generate Key
+                {isSyncing ? 'Creating...' : 'Setup Cloud'}
               </button>
             )}
             {syncKey && (
               <button
                 onClick={copyKeyToClipboard}
-                className="text-[10px] font-bold bg-white/10 hover:bg-white/20 px-3 py-1.5 rounded-lg border border-white/10 uppercase tracking-widest"
-                title="Copy Key"
+                className="text-[10px] font-bold bg-white/10 hover:bg-white/20 px-3 py-1.5 rounded-lg border border-white/10 uppercase tracking-widest transition-all"
               >
-                <i className="fa-solid fa-copy"></i>
+                <i className="fa-solid fa-copy mr-1.5"></i>
+                ID
               </button>
             )}
           </div>
@@ -188,9 +213,13 @@ const Settings: React.FC<SettingsProps> = ({ babyName, onUpdateBabyName, types, 
             <input
               type="text"
               value={syncKey}
-              onChange={(e) => { setSyncKey(e.target.value); localStorage.setItem('tiny_steps_sync_key', e.target.value); }}
-              placeholder="Enter your sync key"
-              className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 outline-none font-mono text-sm focus:bg-white/15 focus:border-indigo-400 transition-all text-indigo-200"
+              onChange={(e) => {
+                const val = e.target.value.trim();
+                setSyncKey(val);
+                localStorage.setItem('tiny_steps_sync_key', val);
+              }}
+              placeholder="Paste Bin ID here"
+              className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 outline-none font-mono text-sm focus:bg-white/15 focus:border-indigo-400 transition-all text-indigo-200 placeholder:text-slate-600"
             />
           </div>
           <div className="grid grid-cols-2 gap-4">
@@ -199,18 +228,17 @@ const Settings: React.FC<SettingsProps> = ({ babyName, onUpdateBabyName, types, 
               disabled={isSyncing}
               className="bg-white text-slate-900 font-bold py-3 rounded-xl hover:bg-slate-100 transition shadow-lg active:scale-95 disabled:opacity-50"
             >
-              Push Data
+              Push to Cloud
             </button>
             <button
               onClick={handlePull}
               disabled={isSyncing}
               className="bg-slate-700 text-white font-bold py-3 rounded-xl hover:bg-slate-600 transition shadow-lg active:scale-95 disabled:opacity-50"
             >
-              Fetch Data
+              Fetch from Cloud
             </button>
           </div>
-          {syncStatus === 'error' && <p className="text-rose-400 text-[10px] font-bold text-center">Cloud connection issue. Try a different key.</p>}
-          {syncStatus === 'success' && <p className="text-emerald-400 text-[10px] font-bold text-center">Sync Successful!</p>}
+          <p className="text-[9px] text-slate-400 text-center opacity-60">Uses JSONBin.io with your Master Key</p>
         </div>
       </section>
 
@@ -237,7 +265,7 @@ const Settings: React.FC<SettingsProps> = ({ babyName, onUpdateBabyName, types, 
         <div className="bg-white p-6 rounded-2xl border border-slate-200 space-y-6">
           <h3 className="font-bold text-slate-800">Add New Activity</h3>
           <form onSubmit={handleAddType} className="space-y-4">
-            <input type="text" placeholder="Name (e.g. Tummy Time)" value={name} onChange={(e) => setName(e.target.value)} className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none transition-all" />
+            <input type="text" placeholder="Activity Name" value={name} onChange={(e) => setName(e.target.value)} className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none transition-all" />
             <div className="grid grid-cols-2 gap-4">
               <select value={category} onChange={(e) => setCategory(e.target.value as ActivityCategory)} className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 outline-none">
                 <option value="FEEDING">Feeding</option>
@@ -246,7 +274,7 @@ const Settings: React.FC<SettingsProps> = ({ babyName, onUpdateBabyName, types, 
                 <option value="GROWTH">Growth</option>
                 <option value="OTHER">Other</option>
               </select>
-              <input type="text" placeholder="Unit (ml, min, kg)" value={unit} onChange={(e) => setUnit(e.target.value)} className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 outline-none" />
+              <input type="text" placeholder="Unit (ml, min)" value={unit} onChange={(e) => setUnit(e.target.value)} className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 outline-none" />
             </div>
             <div className="flex flex-wrap gap-2">
               {ICONS.map(i => (
