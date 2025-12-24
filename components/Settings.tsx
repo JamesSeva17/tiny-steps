@@ -42,6 +42,12 @@ const Settings: React.FC<SettingsProps> = ({ babyName, onUpdateBabyName, types, 
     setUnit('');
   };
 
+  const generateNewKey = () => {
+    const newKey = syncService.generateKey();
+    setSyncKey(newKey);
+    localStorage.setItem('tiny_steps_sync_key', newKey);
+  };
+
   const exportToCSV = () => {
     const headers = ['Date', 'Time', 'Activity', 'Value', 'Unit', 'Note'];
     const rows = entries.map(e => {
@@ -53,13 +59,13 @@ const Settings: React.FC<SettingsProps> = ({ babyName, onUpdateBabyName, types, 
         type?.name || 'Unknown',
         e.value || '',
         type?.unit || '',
-        e.note || ''
+        `"${(e.note || '').replace(/"/g, '""')}"`
       ];
     });
 
-    const csvContent = "data:text/csv;charset=utf-8," 
+    const csvContent = "data:text/csv;charset=utf-8,"
       + [headers, ...rows].map(e => e.join(",")).join("\n");
-    
+
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");
     link.setAttribute("href", encodedUri);
@@ -70,23 +76,39 @@ const Settings: React.FC<SettingsProps> = ({ babyName, onUpdateBabyName, types, 
   };
 
   const handlePush = async () => {
-    if (!syncKey) return;
+    if (!syncKey) {
+      alert("Please enter or generate a sync key first.");
+      return;
+    }
     setIsSyncing(true);
+    setSyncStatus('idle');
     const success = await syncService.push(syncKey, { entries, types, babyName, lastUpdated: Date.now() });
     setSyncStatus(success ? 'success' : 'error');
     setIsSyncing(false);
-    setTimeout(() => setSyncStatus('idle'), 3000);
+    if (success) {
+      localStorage.setItem('tiny_steps_last_sync', Date.now().toString());
+    }
+    setTimeout(() => setSyncStatus('idle'), 4000);
   };
 
   const handlePull = async () => {
-    if (!syncKey) return;
-    if (!confirm("Replace local data with cloud data?")) return;
+    if (!syncKey) {
+      alert("Please enter a sync key first.");
+      return;
+    }
+    if (!confirm("Replace local data with cloud data? Current local data will be lost if not saved.")) return;
     setIsSyncing(true);
+    setSyncStatus('idle');
     const data = await syncService.pull(syncKey);
-    if (data) { onSyncData(data); setSyncStatus('success'); }
-    else { setSyncStatus('error'); }
+    if (data) {
+      onSyncData(data);
+      setSyncStatus('success');
+    } else {
+      setSyncStatus('error');
+      alert("Could not find data for this key. Make sure you've saved data to the cloud first.");
+    }
     setIsSyncing(false);
-    setTimeout(() => setSyncStatus('idle'), 3000);
+    setTimeout(() => setSyncStatus('idle'), 4000);
   };
 
   return (
@@ -101,14 +123,14 @@ const Settings: React.FC<SettingsProps> = ({ babyName, onUpdateBabyName, types, 
           <i className="fa-solid fa-face-smile text-indigo-500"></i>
           <span>Baby Profile</span>
         </h3>
-        <input 
-          type="text" 
+        <input
+          type="text"
           value={babyName}
           onChange={(e) => onUpdateBabyName(e.target.value)}
           placeholder="Baby's Name"
           className="w-full max-w-md px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 outline-none text-slate-900 font-bold"
         />
-        <button 
+        <button
           onClick={exportToCSV}
           className="mt-4 text-xs font-bold text-indigo-600 flex items-center space-x-2 hover:underline"
         >
@@ -117,34 +139,71 @@ const Settings: React.FC<SettingsProps> = ({ babyName, onUpdateBabyName, types, 
         </button>
       </section>
 
-      <section className="bg-slate-900 p-8 rounded-3xl text-white shadow-xl">
-        <div className="flex items-center space-x-4 mb-6">
-          <div className="w-12 h-12 bg-indigo-600 rounded-2xl flex items-center justify-center">
-            <i className="fa-solid fa-cloud text-xl"></i>
-          </div>
-          <h3 className="text-xl font-bold">Cloud Sync</h3>
+      <section className="bg-slate-900 p-8 rounded-3xl text-white shadow-xl relative overflow-hidden">
+        <div className="absolute top-0 right-0 p-8 opacity-5">
+          <i className="fa-solid fa-cloud-arrow-up text-9xl"></i>
         </div>
-        <div className="space-y-4">
-          <input 
-            type="text" 
-            value={syncKey}
-            onChange={(e) => { setSyncKey(e.target.value); localStorage.setItem('tiny_steps_sync_key', e.target.value); }}
-            placeholder="Sync Key"
-            className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 outline-none font-mono text-sm"
-          />
-          <div className="grid grid-cols-2 gap-4">
-            <button onClick={handlePush} className="bg-white text-slate-900 font-bold py-3 rounded-xl">Save Cloud</button>
-            <button onClick={handlePull} className="bg-slate-700 text-white font-bold py-3 rounded-xl">Load Cloud</button>
+
+        <div className="flex items-center justify-between mb-6 relative z-10">
+          <div className="flex items-center space-x-4">
+            <div className={`w-12 h-12 ${syncStatus === 'error' ? 'bg-rose-500' : syncStatus === 'success' ? 'bg-emerald-500' : 'bg-indigo-600'} rounded-2xl flex items-center justify-center transition-colors`}>
+              {isSyncing ? <i className="fa-solid fa-spinner fa-spin text-xl"></i> :
+                syncStatus === 'success' ? <i className="fa-solid fa-check text-xl"></i> :
+                  syncStatus === 'error' ? <i className="fa-solid fa-triangle-exclamation text-xl"></i> :
+                    <i className="fa-solid fa-cloud text-xl"></i>}
+            </div>
+            <div>
+              <h3 className="text-xl font-bold">Cloud Sync</h3>
+              <p className="text-slate-400 text-xs mt-1">Share data across multiple devices.</p>
+            </div>
           </div>
+          {!syncKey && (
+            <button
+              onClick={generateNewKey}
+              className="text-[10px] font-bold bg-white/10 hover:bg-white/20 px-3 py-1.5 rounded-lg border border-white/10 uppercase tracking-widest"
+            >
+              Generate Key
+            </button>
+          )}
+        </div>
+
+        <div className="space-y-4 relative z-10">
+          <div className="relative">
+            <input
+              type="text"
+              value={syncKey}
+              onChange={(e) => { setSyncKey(e.target.value); localStorage.setItem('tiny_steps_sync_key', e.target.value); }}
+              placeholder="Enter your private sync key"
+              className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 outline-none font-mono text-sm focus:bg-white/15 focus:border-indigo-400 transition-all"
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <button
+              onClick={handlePush}
+              disabled={isSyncing}
+              className="bg-white text-slate-900 font-bold py-3 rounded-xl hover:bg-slate-100 transition shadow-lg active:scale-95 disabled:opacity-50"
+            >
+              Save to Cloud
+            </button>
+            <button
+              onClick={handlePull}
+              disabled={isSyncing}
+              className="bg-slate-700 text-white font-bold py-3 rounded-xl hover:bg-slate-600 transition shadow-lg active:scale-95 disabled:opacity-50"
+            >
+              Load from Cloud
+            </button>
+          </div>
+          {syncStatus === 'error' && <p className="text-rose-400 text-[10px] font-bold text-center">Connection failed. Please check your key or internet.</p>}
+          {syncStatus === 'success' && <p className="text-emerald-400 text-[10px] font-bold text-center">Sync successful!</p>}
         </div>
       </section>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
         <div className="bg-white p-6 rounded-2xl border border-slate-200 space-y-4">
           <h3 className="font-bold text-slate-800">Custom Activities</h3>
-          <div className="space-y-2 max-h-60 overflow-y-auto pr-2">
+          <div className="space-y-2 max-h-60 overflow-y-auto pr-2 no-scrollbar">
             {types.map((type) => (
-              <div key={type.id} className="flex items-center justify-between p-3 rounded-xl border border-slate-50 group">
+              <div key={type.id} className="flex items-center justify-between p-3 rounded-xl border border-slate-50 group bg-slate-50/30">
                 <div className="flex items-center space-x-3">
                   <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${type.color}`}>
                     <i className={`fa-solid ${type.icon} text-xs`}></i>
@@ -162,25 +221,25 @@ const Settings: React.FC<SettingsProps> = ({ babyName, onUpdateBabyName, types, 
         <div className="bg-white p-6 rounded-2xl border border-slate-200 space-y-6">
           <h3 className="font-bold text-slate-800">Add New Activity</h3>
           <form onSubmit={handleAddType} className="space-y-4">
-            <input type="text" placeholder="Name (e.g. Tummy Time)" value={name} onChange={(e) => setName(e.target.value)} className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200" />
+            <input type="text" placeholder="Name (e.g. Tummy Time)" value={name} onChange={(e) => setName(e.target.value)} className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none transition-all" />
             <div className="grid grid-cols-2 gap-4">
-              <select value={category} onChange={(e) => setCategory(e.target.value as ActivityCategory)} className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200">
+              <select value={category} onChange={(e) => setCategory(e.target.value as ActivityCategory)} className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 outline-none">
                 <option value="FEEDING">Feeding</option>
                 <option value="DIAPER">Diaper</option>
                 <option value="SLEEP">Sleep</option>
                 <option value="GROWTH">Growth</option>
                 <option value="OTHER">Other</option>
               </select>
-              <input type="text" placeholder="Unit (ml, min, kg)" value={unit} onChange={(e) => setUnit(e.target.value)} className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200" />
+              <input type="text" placeholder="Unit (ml, min, kg)" value={unit} onChange={(e) => setUnit(e.target.value)} className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 outline-none" />
             </div>
             <div className="flex flex-wrap gap-2">
               {ICONS.map(i => (
-                <button key={i} type="button" onClick={() => setIcon(i)} className={`w-10 h-10 rounded-xl transition ${icon === i ? 'bg-indigo-600 text-white' : 'bg-slate-50 text-slate-400'}`}>
+                <button key={i} type="button" onClick={() => setIcon(i)} className={`w-10 h-10 rounded-xl transition ${icon === i ? 'bg-indigo-600 text-white shadow-md' : 'bg-slate-50 text-slate-400 hover:bg-slate-100'}`}>
                   <i className={`fa-solid ${i}`}></i>
                 </button>
               ))}
             </div>
-            <button type="submit" className="w-full bg-slate-800 text-white font-bold py-4 rounded-xl shadow-lg active:scale-95 transition-all">Create Activity</button>
+            <button type="submit" className="w-full bg-slate-800 text-white font-bold py-4 rounded-xl shadow-lg active:scale-95 transition-all hover:bg-slate-900">Create Activity</button>
           </form>
         </div>
       </div>

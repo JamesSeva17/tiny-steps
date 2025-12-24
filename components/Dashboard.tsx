@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { 
+import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend
 } from 'recharts';
 import { useNavigate } from 'react-router-dom';
@@ -40,7 +40,12 @@ const Dashboard: React.FC<DashboardProps> = ({ babyName, entries, types, onSyncN
   const [insight, setInsight] = useState<AIInsight | null>(null);
   const [loadingInsight, setLoadingInsight] = useState(false);
   const [syncKey] = useState(() => localStorage.getItem('tiny_steps_sync_key') || '');
-  const [lastSyncTime] = useState(() => localStorage.getItem('tiny_steps_last_sync') || '');
+  const [lastSyncTime] = useState(() => {
+    const saved = localStorage.getItem('tiny_steps_last_sync');
+    if (!saved) return '';
+    const date = new Date(parseInt(saved));
+    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  });
 
   const [timeFilter, setTimeFilter] = useState<TimeFilter>('today');
   const [selectedActivityIds, setSelectedActivityIds] = useState<string[]>([]);
@@ -55,7 +60,7 @@ const Dashboard: React.FC<DashboardProps> = ({ babyName, entries, types, onSyncN
   const filteredEntries = useMemo(() => {
     const now = Date.now();
     let startTime = 0;
-    
+
     switch (timeFilter) {
       case 'today': startTime = new Date().setHours(0, 0, 0, 0); break;
       case 'last_24h': startTime = now - 24 * 60 * 60 * 1000; break;
@@ -89,11 +94,11 @@ const Dashboard: React.FC<DashboardProps> = ({ babyName, entries, types, onSyncN
       const dayStart = new Date(d).setHours(0, 0, 0, 0);
       const dayEnd = new Date(d).setHours(23, 59, 59, 999);
       const dayEntries = entries.filter(e => e.timestamp >= dayStart && e.timestamp <= dayEnd);
-      
+
       const dayObj: any = { name: d.toLocaleDateString('en-US', { weekday: 'short' }) };
-      types.forEach(t => { 
+      types.forEach(t => {
         if (selectedActivityIds.length === 0 || selectedActivityIds.includes(t.id)) {
-          dayObj[t.name] = dayEntries.filter(e => e.typeId === t.id).length; 
+          dayObj[t.name] = dayEntries.filter(e => e.typeId === t.id).length;
         }
       });
       data.push(dayObj);
@@ -122,13 +127,23 @@ const Dashboard: React.FC<DashboardProps> = ({ babyName, entries, types, onSyncN
             {syncKey && (
               <span className="text-[10px] font-bold text-indigo-400 uppercase tracking-tight flex items-center">
                 <span className={`w-1.5 h-1.5 rounded-full mr-1.5 ${isSyncing ? 'bg-amber-400 animate-pulse' : 'bg-emerald-400'}`}></span>
-                {isSyncing ? 'Syncing...' : lastSyncTime ? `Live Sync Active` : 'Cloud Connected'}
+                {isSyncing ? 'Syncing...' : lastSyncTime ? `Synced at ${lastSyncTime}` : 'Cloud Ready'}
               </span>
             )}
           </div>
         </div>
         <div className="flex items-center space-x-3">
-          <button 
+          {syncKey && onSyncNow && (
+            <button
+              onClick={() => onSyncNow()}
+              disabled={isSyncing}
+              className="bg-white border border-slate-200 text-slate-600 p-2.5 rounded-xl hover:bg-slate-50 transition active:scale-95 disabled:opacity-50 shadow-sm"
+              title="Sync now"
+            >
+              <i className={`fa-solid fa-arrows-rotate ${isSyncing ? 'fa-spin text-indigo-500' : ''}`}></i>
+            </button>
+          )}
+          <button
             onClick={() => {
               setLoadingInsight(true);
               getBabyInsights(entries, types).then(res => {
@@ -137,7 +152,7 @@ const Dashboard: React.FC<DashboardProps> = ({ babyName, entries, types, onSyncN
               });
             }}
             disabled={loadingInsight}
-            className="bg-indigo-600 text-white px-4 py-2 rounded-xl hover:bg-indigo-700 transition flex items-center space-x-2 text-sm shadow-lg shadow-indigo-100 active:scale-95"
+            className="bg-indigo-600 text-white px-4 py-2.5 rounded-xl hover:bg-indigo-700 transition flex items-center space-x-2 text-sm font-bold shadow-lg shadow-indigo-100 active:scale-95"
           >
             {loadingInsight ? <i className="fa-solid fa-spinner fa-spin"></i> : <i className="fa-solid fa-wand-magic-sparkles"></i>}
             <span>Health Insights</span>
@@ -199,9 +214,8 @@ const Dashboard: React.FC<DashboardProps> = ({ babyName, entries, types, onSyncN
                 <button
                   key={f}
                   onClick={() => setTimeFilter(f)}
-                  className={`px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all capitalize ${
-                    timeFilter === f ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400'
-                  }`}
+                  className={`px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all capitalize ${timeFilter === f ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400'
+                    }`}
                 >
                   {f.replace('_', ' ')}
                 </button>
@@ -212,10 +226,10 @@ const Dashboard: React.FC<DashboardProps> = ({ babyName, entries, types, onSyncN
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={chartData}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 10}} />
-                <YAxis axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 10}} />
-                <Tooltip 
-                  cursor={{fill: '#f8fafc'}}
+                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 10 }} />
+                <YAxis axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 10 }} />
+                <Tooltip
+                  cursor={{ fill: '#f8fafc' }}
                   contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
                 />
                 <Legend iconType="circle" wrapperStyle={{ fontSize: '10px', paddingTop: '20px' }} />
@@ -248,6 +262,12 @@ const Dashboard: React.FC<DashboardProps> = ({ babyName, entries, types, onSyncN
                 </div>
               );
             })}
+            {entries.length === 0 && (
+              <div className="text-center py-10 opacity-40">
+                <i className="fa-solid fa-feather-pointed text-2xl mb-2"></i>
+                <p className="text-[10px] font-bold">No logs yet</p>
+              </div>
+            )}
           </div>
         </div>
       </div>
