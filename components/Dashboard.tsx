@@ -124,32 +124,31 @@ const Dashboard: React.FC<DashboardProps> = ({ babyName, entries, types, onSyncN
           </h2>
           <div className="flex items-center space-x-2 mt-1">
             {syncKey ? (
-              <span className="text-[10px] font-bold text-indigo-400 uppercase tracking-tight flex items-center bg-indigo-50 px-2 py-0.5 rounded-full">
+              <span className="text-[10px] font-bold text-indigo-400 uppercase tracking-tight flex items-center bg-indigo-50 px-2 py-1 rounded-full border border-indigo-100">
                 <span className={`w-1.5 h-1.5 rounded-full mr-1.5 ${isSyncing ? 'bg-amber-400 animate-pulse' : 'bg-emerald-400'}`}></span>
-                {isSyncing ? 'Syncing...' : lastSyncTime ? `Synced at ${lastSyncTime}` : 'Cloud Connected'}
+                {isSyncing ? 'Syncing...' : lastSyncTime ? `Cloud Synced ${lastSyncTime}` : 'Cloud Connected'}
               </span>
             ) : (
               <button
                 onClick={() => navigate('/settings')}
-                className="text-[10px] font-bold text-slate-400 uppercase tracking-tight flex items-center hover:text-indigo-500 transition"
+                className="text-[10px] font-bold text-slate-400 uppercase tracking-tight flex items-center hover:text-indigo-500 transition group"
               >
-                <i className="fa-solid fa-cloud-arrow-up mr-1.5"></i>
-                Set up Cloud Sync
+                <i className="fa-solid fa-cloud-arrow-up mr-1.5 group-hover:animate-bounce"></i>
+                Cloud Sync: Not Set Up
               </button>
             )}
           </div>
         </div>
         <div className="flex items-center space-x-3">
-          {onSyncNow && (
-            <button
-              onClick={() => onSyncNow()}
-              disabled={isSyncing || !syncKey}
-              className={`bg-white border border-slate-200 text-slate-600 p-2.5 rounded-xl transition active:scale-95 disabled:opacity-30 shadow-sm ${!syncKey ? 'hidden' : 'flex'}`}
-              title={syncKey ? "Sync with Cloud" : "Set up Sync in Settings"}
-            >
-              <i className={`fa-solid fa-arrows-rotate ${isSyncing ? 'fa-spin text-indigo-500' : ''}`}></i>
-            </button>
-          )}
+          <button
+            onClick={() => syncKey ? (onSyncNow && onSyncNow()) : navigate('/settings')}
+            className={`flex items-center space-x-2 px-3 py-2.5 rounded-xl border transition active:scale-95 shadow-sm ${isSyncing ? 'bg-indigo-50 border-indigo-100 text-indigo-600' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+              }`}
+          >
+            <i className={`fa-solid fa-arrows-rotate ${isSyncing ? 'fa-spin' : ''}`}></i>
+            <span className="text-xs font-bold">{syncKey ? 'Sync' : 'Set Up Cloud'}</span>
+          </button>
+
           <button
             onClick={() => {
               setLoadingInsight(true);
@@ -162,7 +161,7 @@ const Dashboard: React.FC<DashboardProps> = ({ babyName, entries, types, onSyncN
             className="bg-indigo-600 text-white px-4 py-2.5 rounded-xl hover:bg-indigo-700 transition flex items-center space-x-2 text-sm font-bold shadow-lg shadow-indigo-100 active:scale-95"
           >
             {loadingInsight ? <i className="fa-solid fa-spinner fa-spin"></i> : <i className="fa-solid fa-wand-magic-sparkles"></i>}
-            <span>Health Insights</span>
+            <span>AI Advice</span>
           </button>
         </div>
       </header>
@@ -182,7 +181,7 @@ const Dashboard: React.FC<DashboardProps> = ({ babyName, entries, types, onSyncN
                 {stat.lastEntry ? formatTimeSince(stat.lastEntry.timestamp) : 'No data'}
               </div>
               <div className="text-[10px] text-slate-400 font-medium">
-                {stat.count} recorded {timeFilter.replace('_', ' ')}
+                {stat.count} {timeFilter.replace('_', ' ')}
               </div>
             </div>
           </div>

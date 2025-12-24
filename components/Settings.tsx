@@ -48,6 +48,11 @@ const Settings: React.FC<SettingsProps> = ({ babyName, onUpdateBabyName, types, 
     localStorage.setItem('tiny_steps_sync_key', newKey);
   };
 
+  const copyKeyToClipboard = () => {
+    navigator.clipboard.writeText(syncKey);
+    alert("Sync Key copied! Use this to sync with other device.");
+  };
+
   const exportToCSV = () => {
     const headers = ['Date', 'Time', 'Activity', 'Value', 'Unit', 'Note'];
     const rows = entries.map(e => {
@@ -96,7 +101,7 @@ const Settings: React.FC<SettingsProps> = ({ babyName, onUpdateBabyName, types, 
       alert("Please enter a sync key first.");
       return;
     }
-    if (!confirm("Replace local data with cloud data? Current local data will be lost if not saved.")) return;
+    if (!confirm("This will overwrite your local data with cloud data. Continue?")) return;
     setIsSyncing(true);
     setSyncStatus('idle');
     const data = await syncService.pull(syncKey);
@@ -105,7 +110,7 @@ const Settings: React.FC<SettingsProps> = ({ babyName, onUpdateBabyName, types, 
       setSyncStatus('success');
     } else {
       setSyncStatus('error');
-      alert("Could not find data for this key. Make sure you've saved data to the cloud first.");
+      alert("No data found for this key. Try saving to cloud from the other device first!");
     }
     setIsSyncing(false);
     setTimeout(() => setSyncStatus('idle'), 4000);
@@ -115,7 +120,7 @@ const Settings: React.FC<SettingsProps> = ({ babyName, onUpdateBabyName, types, 
     <div className="space-y-8 pb-12">
       <header>
         <h2 className="text-2xl font-bold text-slate-800">Settings</h2>
-        <p className="text-slate-500">Configure your tracking experience.</p>
+        <p className="text-slate-500">Configure your baby's profile and cloud sync.</p>
       </header>
 
       <section className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
@@ -153,18 +158,29 @@ const Settings: React.FC<SettingsProps> = ({ babyName, onUpdateBabyName, types, 
                     <i className="fa-solid fa-cloud text-xl"></i>}
             </div>
             <div>
-              <h3 className="text-xl font-bold">Cloud Sync</h3>
-              <p className="text-slate-400 text-xs mt-1">Share data across multiple devices.</p>
+              <h3 className="text-xl font-bold">Sync ID</h3>
+              <p className="text-slate-400 text-xs mt-1">Sync with other device.</p>
             </div>
           </div>
-          {!syncKey && (
-            <button
-              onClick={generateNewKey}
-              className="text-[10px] font-bold bg-white/10 hover:bg-white/20 px-3 py-1.5 rounded-lg border border-white/10 uppercase tracking-widest"
-            >
-              Generate Key
-            </button>
-          )}
+          <div className="flex space-x-2">
+            {!syncKey && (
+              <button
+                onClick={generateNewKey}
+                className="text-[10px] font-bold bg-white/10 hover:bg-white/20 px-3 py-1.5 rounded-lg border border-white/10 uppercase tracking-widest"
+              >
+                Generate Key
+              </button>
+            )}
+            {syncKey && (
+              <button
+                onClick={copyKeyToClipboard}
+                className="text-[10px] font-bold bg-white/10 hover:bg-white/20 px-3 py-1.5 rounded-lg border border-white/10 uppercase tracking-widest"
+                title="Copy Key"
+              >
+                <i className="fa-solid fa-copy"></i>
+              </button>
+            )}
+          </div>
         </div>
 
         <div className="space-y-4 relative z-10">
@@ -173,8 +189,8 @@ const Settings: React.FC<SettingsProps> = ({ babyName, onUpdateBabyName, types, 
               type="text"
               value={syncKey}
               onChange={(e) => { setSyncKey(e.target.value); localStorage.setItem('tiny_steps_sync_key', e.target.value); }}
-              placeholder="Enter your private sync key"
-              className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 outline-none font-mono text-sm focus:bg-white/15 focus:border-indigo-400 transition-all"
+              placeholder="Enter your sync key"
+              className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 outline-none font-mono text-sm focus:bg-white/15 focus:border-indigo-400 transition-all text-indigo-200"
             />
           </div>
           <div className="grid grid-cols-2 gap-4">
@@ -183,18 +199,18 @@ const Settings: React.FC<SettingsProps> = ({ babyName, onUpdateBabyName, types, 
               disabled={isSyncing}
               className="bg-white text-slate-900 font-bold py-3 rounded-xl hover:bg-slate-100 transition shadow-lg active:scale-95 disabled:opacity-50"
             >
-              Save to Cloud
+              Push Data
             </button>
             <button
               onClick={handlePull}
               disabled={isSyncing}
               className="bg-slate-700 text-white font-bold py-3 rounded-xl hover:bg-slate-600 transition shadow-lg active:scale-95 disabled:opacity-50"
             >
-              Load from Cloud
+              Fetch Data
             </button>
           </div>
-          {syncStatus === 'error' && <p className="text-rose-400 text-[10px] font-bold text-center">Connection failed. Please check your key or internet.</p>}
-          {syncStatus === 'success' && <p className="text-emerald-400 text-[10px] font-bold text-center">Sync successful!</p>}
+          {syncStatus === 'error' && <p className="text-rose-400 text-[10px] font-bold text-center">Cloud connection issue. Try a different key.</p>}
+          {syncStatus === 'success' && <p className="text-emerald-400 text-[10px] font-bold text-center">Sync Successful!</p>}
         </div>
       </section>
 

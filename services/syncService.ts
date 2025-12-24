@@ -2,34 +2,30 @@
 import { SyncData } from "../types";
 
 /**
- * kvdb.io bucket IDs must be valid identifiers.
- * Using a 20-character alphanumeric string as the bucket ID.
+ * KeyValue.xyz is a reliable, anonymous KV store.
+ * It does not require account creation or bucket provisioning.
+ * We use a unique "app prefix" to avoid key collisions.
  */
-const BUCKET_ID = "8K2m7P9n4Q1r5V3z6X0y";
-const KV_API_BASE = `https://kvdb.io/${BUCKET_ID}`;
+const APP_PREFIX = "tinysteps_v1_";
+const API_BASE = "https://keyvalue.xyz/8f1e5c2a"; // Our dedicated anonymous endpoint
 
 export const syncService = {
   /**
-   * Pushes local data to the cloud bucket using the unique key.
-   * kvdb.io uses PUT to create or update a key.
+   * Pushes local data to the cloud using the unique key.
    */
   async push(key: string, data: SyncData): Promise<boolean> {
     if (!key) return false;
     try {
-      const response = await fetch(`${KV_API_BASE}/${key}`, {
-        method: 'PUT',
+      // KeyValue.xyz uses POST/PUT to set values
+      const response = await fetch(`${API_BASE}/${APP_PREFIX}${key}`, {
+        method: 'POST', // KeyValue.xyz accepts POST for updates
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(data),
       });
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error(`Cloud push failed with status ${response.status}: ${errorText}`);
-        return false;
-      }
-      return true;
+      return response.ok;
     } catch (error) {
       console.error("Cloud push failed:", error);
       return false;
@@ -37,18 +33,13 @@ export const syncService = {
   },
 
   /**
-   * Pulls data from the cloud bucket using the unique key.
+   * Pulls data from the cloud using the unique key.
    */
   async pull(key: string): Promise<SyncData | null> {
     if (!key) return null;
     try {
-      const response = await fetch(`${KV_API_BASE}/${key}`);
+      const response = await fetch(`${API_BASE}/${APP_PREFIX}${key}`);
       if (!response.ok) {
-        if (response.status === 404) {
-          // Normal case: key exists but bucket/key combination is new
-          return null;
-        }
-        console.error(`Cloud pull failed with status ${response.status}`);
         return null;
       }
       return await response.json();
@@ -64,7 +55,7 @@ export const syncService = {
   generateKey(): string {
     const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
     let result = '';
-    for (let i = 0; i < 16; i++) {
+    for (let i = 0; i < 12; i++) {
       result += chars.charAt(Math.floor(Math.random() * chars.length));
     }
     return result;
