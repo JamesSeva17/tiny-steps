@@ -1,5 +1,5 @@
-
 {
   "name": "TinySteps - Baby Activity Tracker",
-  "description": "A comprehensive baby tracking application to monitor feedings, diaper changes, and more with AI-powered health insights and beautiful data visualizations."
+  "description": "A comprehensive baby tracking application to monitor feedings, diaper changes, and more with AI-powered health insights and beautiful data visualizations.",
+  "requestFramePermissions": []
 }

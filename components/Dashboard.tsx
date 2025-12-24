@@ -24,10 +24,15 @@ const colorMap: Record<string, string> = {
   'bg-blue-100 text-blue-600': '#2563eb',
   'bg-indigo-100 text-indigo-600': '#4f46e5',
   'bg-emerald-100 text-emerald-600': '#059669',
-  'bg-cyan-100 text-cyan-600': '#0891b2',
-  'bg-violet-100 text-violet-600': '#7c3aed',
-  'bg-orange-100 text-orange-600': '#ea580c',
-  'bg-teal-100 text-teal-600': '#0d9488',
+};
+
+const formatTimeSince = (timestamp: number) => {
+  const diff = Date.now() - timestamp;
+  const hours = Math.floor(diff / (1000 * 60 * 60));
+  const mins = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+  if (hours > 24) return `${Math.floor(hours / 24)}d ago`;
+  if (hours > 0) return `${hours}h ${mins}m ago`;
+  return `${mins}m ago`;
 };
 
 const Dashboard: React.FC<DashboardProps> = ({ babyName, entries, types, onSyncNow, isSyncing }) => {
@@ -39,6 +44,13 @@ const Dashboard: React.FC<DashboardProps> = ({ babyName, entries, types, onSyncN
 
   const [timeFilter, setTimeFilter] = useState<TimeFilter>('today');
   const [selectedActivityIds, setSelectedActivityIds] = useState<string[]>([]);
+
+  // Real-time update for "Time Since" counters
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const timer = setInterval(() => setTick(t => t + 1), 60000);
+    return () => clearInterval(timer);
+  }, []);
 
   const filteredEntries = useMemo(() => {
     const now = Date.now();
@@ -58,11 +70,14 @@ const Dashboard: React.FC<DashboardProps> = ({ babyName, entries, types, onSyncN
   }, [entries, timeFilter, selectedActivityIds]);
 
   const stats = useMemo(() => {
-    return types.map(t => ({
-      ...t,
-      count: filteredEntries.filter(e => e.typeId === t.id).length,
-      lastTime: entries.filter(e => e.typeId === t.id).sort((a, b) => b.timestamp - a.timestamp)[0]?.timestamp
-    }));
+    return types.map(t => {
+      const typeEntries = entries.filter(e => e.typeId === t.id).sort((a, b) => b.timestamp - a.timestamp);
+      return {
+        ...t,
+        count: filteredEntries.filter(e => e.typeId === t.id).length,
+        lastEntry: typeEntries[0]
+      };
+    });
   }, [filteredEntries, types, entries]);
 
   const chartData = useMemo(() => {
@@ -86,12 +101,6 @@ const Dashboard: React.FC<DashboardProps> = ({ babyName, entries, types, onSyncN
     return data;
   }, [entries, types, selectedActivityIds]);
 
-  const toggleActivityFilter = (id: string) => {
-    setSelectedActivityIds(prev => 
-      prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]
-    );
-  };
-
   useEffect(() => {
     if (entries.length >= 5 && !insight) {
       setLoadingInsight(true);
@@ -102,14 +111,6 @@ const Dashboard: React.FC<DashboardProps> = ({ babyName, entries, types, onSyncN
     }
   }, [entries]);
 
-  const handleSyncClick = () => {
-    if (syncKey) {
-      onSyncNow?.();
-    } else {
-      navigate('/settings');
-    }
-  };
-
   return (
     <div className="space-y-6">
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -118,30 +119,15 @@ const Dashboard: React.FC<DashboardProps> = ({ babyName, entries, types, onSyncN
             {babyName ? `${babyName}'s Dashboard` : "Baby's Dashboard"} 👋
           </h2>
           <div className="flex items-center space-x-2 mt-1">
-            <p className="text-slate-500 text-sm">Summary for your little one.</p>
             {syncKey && (
               <span className="text-[10px] font-bold text-indigo-400 uppercase tracking-tight flex items-center">
                 <span className={`w-1.5 h-1.5 rounded-full mr-1.5 ${isSyncing ? 'bg-amber-400 animate-pulse' : 'bg-emerald-400'}`}></span>
-                {isSyncing ? 'Syncing...' : lastSyncTime ? `Last Sync: ${new Date(parseInt(lastSyncTime)).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}` : 'Not synced'}
+                {isSyncing ? 'Syncing...' : lastSyncTime ? `Live Sync Active` : 'Cloud Connected'}
               </span>
             )}
           </div>
         </div>
         <div className="flex items-center space-x-3">
-          <button 
-            onClick={handleSyncClick}
-            disabled={isSyncing}
-            className={`px-4 py-2 rounded-xl transition flex items-center space-x-2 text-sm font-bold shadow-lg shadow-indigo-100 active:scale-95 ${
-              isSyncing 
-              ? 'bg-slate-100 text-slate-400' 
-              : syncKey 
-                ? 'bg-white text-indigo-600 border border-indigo-100 hover:bg-indigo-50' 
-                : 'bg-indigo-50 text-indigo-600 border border-indigo-200 hover:bg-indigo-100'
-            }`}
-          >
-            <i className={`fa-solid ${isSyncing ? 'fa-spinner fa-spin' : syncKey ? 'fa-arrows-rotate' : 'fa-cloud-arrow-up'}`}></i>
-            <span>{isSyncing ? 'Syncing...' : syncKey ? 'Sync Now' : 'Set Up Sync'}</span>
-          </button>
           <button 
             onClick={() => {
               setLoadingInsight(true);
@@ -154,12 +140,33 @@ const Dashboard: React.FC<DashboardProps> = ({ babyName, entries, types, onSyncN
             className="bg-indigo-600 text-white px-4 py-2 rounded-xl hover:bg-indigo-700 transition flex items-center space-x-2 text-sm shadow-lg shadow-indigo-100 active:scale-95"
           >
             {loadingInsight ? <i className="fa-solid fa-spinner fa-spin"></i> : <i className="fa-solid fa-wand-magic-sparkles"></i>}
-            <span>AI Expert</span>
+            <span>Health Insights</span>
           </button>
         </div>
       </header>
 
-      {/* Insight Card */}
+      {/* Quick Summary Widgets */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        {stats.filter(s => ['breast_feed', 'cup_feed', 'poop', 'pee'].includes(s.id)).map(stat => (
+          <div key={stat.id} className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-between">
+            <div className="flex items-center justify-between mb-2">
+              <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs ${stat.color}`}>
+                <i className={`fa-solid ${stat.icon}`}></i>
+              </div>
+              <span className="text-[10px] font-bold text-slate-400 uppercase">{stat.name}</span>
+            </div>
+            <div>
+              <div className="text-lg font-bold text-slate-800">
+                {stat.lastEntry ? formatTimeSince(stat.lastEntry.timestamp) : 'No data'}
+              </div>
+              <div className="text-[10px] text-slate-400 font-medium">
+                {stat.count} recorded {timeFilter.replace('_', ' ')}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
       {insight && (
         <div className="bg-gradient-to-r from-indigo-500 to-blue-600 rounded-3xl p-6 text-white shadow-xl shadow-indigo-100 overflow-hidden relative">
           <div className="absolute top-0 right-0 p-4 opacity-10">
@@ -182,81 +189,24 @@ const Dashboard: React.FC<DashboardProps> = ({ babyName, entries, types, onSyncN
         </div>
       )}
 
-      {/* Filter Section */}
-      <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm space-y-4">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="flex items-center space-x-2 text-slate-400">
-            <i className="fa-solid fa-filter text-xs"></i>
-            <span className="text-xs font-bold uppercase tracking-widest">Filters</span>
-          </div>
-          
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="flex bg-slate-100 p-1 rounded-2xl w-fit">
+      {/* Charts & History */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2 bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6 gap-4">
+            <h3 className="font-bold text-slate-800">Activity Trends</h3>
+            <div className="flex bg-slate-50 p-1 rounded-xl">
               {(['today', 'last_24h', 'last_7d'] as TimeFilter[]).map((f) => (
                 <button
                   key={f}
                   onClick={() => setTimeFilter(f)}
-                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-all capitalize whitespace-nowrap ${
-                    timeFilter === f ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                  className={`px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all capitalize ${
+                    timeFilter === f ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400'
                   }`}
                 >
                   {f.replace('_', ' ')}
                 </button>
               ))}
             </div>
-          </div>
-        </div>
-
-        <div className="pt-2 border-t border-slate-50">
-          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Filter by Activity Type</p>
-          <div className="flex flex-wrap gap-2 overflow-x-auto no-scrollbar">
-            {types.map((type) => {
-              const isSelected = selectedActivityIds.includes(type.id);
-              return (
-                <button
-                  key={type.id}
-                  onClick={() => toggleActivityFilter(type.id)}
-                  className={`px-3 py-2 rounded-xl text-[10px] font-bold transition-all border flex items-center space-x-2 whitespace-nowrap ${
-                    isSelected 
-                    ? 'bg-indigo-600 border-indigo-600 text-white shadow-md' 
-                    : 'bg-white border-slate-200 text-slate-500 hover:border-indigo-300'
-                  }`}
-                >
-                  <i className={`fa-solid ${type.icon}`}></i>
-                  <span>{type.name}</span>
-                </button>
-              );
-            })}
-            {selectedActivityIds.length > 0 && (
-              <button 
-                onClick={() => setSelectedActivityIds([])}
-                className="px-3 py-2 rounded-xl text-[10px] font-bold text-rose-500 hover:bg-rose-50 transition"
-              >
-                Reset All
-              </button>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Stats Grid */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-        {stats.filter(s => selectedActivityIds.length === 0 || selectedActivityIds.includes(s.id)).map((stat) => (
-          <div key={stat.id} className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm hover:shadow-md transition group">
-            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center mb-4 transition-transform group-hover:scale-110 ${stat.color}`}>
-              <i className={`fa-solid ${stat.icon} text-xl`}></i>
-            </div>
-            <div className="text-3xl font-bold text-slate-800">{stat.count}</div>
-            <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">{stat.name}</div>
-          </div>
-        ))}
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 bg-white p-8 rounded-3xl border border-slate-100 shadow-sm">
-          <div className="flex items-center justify-between mb-8">
-            <h3 className="font-bold text-slate-800">Weekly Activity Trend</h3>
-            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Units: Count</span>
           </div>
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
@@ -269,37 +219,35 @@ const Dashboard: React.FC<DashboardProps> = ({ babyName, entries, types, onSyncN
                   contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
                 />
                 <Legend iconType="circle" wrapperStyle={{ fontSize: '10px', paddingTop: '20px' }} />
-                {types.filter(t => selectedActivityIds.length === 0 || selectedActivityIds.includes(t.id)).map((t) => (
-                  <Bar key={t.id} dataKey={t.name} stackId="a" fill={colorMap[t.color] || '#cbd5e1'} radius={[4, 4, 4, 4]} barSize={20} />
+                {types.map((t) => (
+                  <Bar key={t.id} dataKey={t.name} stackId="a" fill={colorMap[t.color] || '#cbd5e1'} radius={[4, 4, 4, 4]} barSize={15} />
                 ))}
               </BarChart>
             </ResponsiveContainer>
           </div>
         </div>
 
-        <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm">
-          <h3 className="font-bold text-slate-800 mb-6">Recent Log</h3>
+        <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
+          <h3 className="font-bold text-slate-800 mb-6 flex items-center justify-between">
+            <span>Recent Log</span>
+            <button onClick={() => navigate('/history')} className="text-[10px] text-indigo-600 font-bold hover:underline">View All</button>
+          </h3>
           <div className="space-y-4">
-            {filteredEntries.slice(-6).reverse().map(entry => {
+            {entries.slice(-5).reverse().map(entry => {
               const type = types.find(t => t.id === entry.typeId);
               return (
-                <div key={entry.id} className="flex items-center space-x-4 p-3 rounded-2xl hover:bg-slate-50 transition border border-transparent hover:border-slate-100">
-                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${type?.color}`}>
-                    <i className={`fa-solid ${type?.icon} text-sm`}></i>
+                <div key={entry.id} className="flex items-center space-x-3 p-2 rounded-xl border border-slate-50">
+                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${type?.color}`}>
+                    <i className={`fa-solid ${type?.icon} text-[10px]`}></i>
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-bold text-slate-800 truncate">{type?.name}</p>
-                    <p className="text-[10px] text-slate-400 font-medium">{new Date(entry.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</p>
+                    <p className="text-xs font-bold text-slate-800 truncate">{type?.name}</p>
+                    <p className="text-[10px] text-slate-400">{formatTimeSince(entry.timestamp)}</p>
                   </div>
-                  {entry.value && <div className="text-xs font-bold text-indigo-600">{entry.value}{type?.unit}</div>}
+                  {entry.value && <div className="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-2 py-1 rounded-lg">{entry.value}{type?.unit}</div>}
                 </div>
               );
             })}
-            {filteredEntries.length === 0 && (
-              <div className="text-center py-10">
-                <p className="text-slate-300 text-sm font-bold">No data matches filters</p>
-              </div>
-            )}
           </div>
         </div>
       </div>

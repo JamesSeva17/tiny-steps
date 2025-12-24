@@ -1,5 +1,5 @@
 
-export type ActivityCategory = 'FEEDING' | 'DIAPER' | 'SLEEP' | 'OTHER';
+export type ActivityCategory = 'FEEDING' | 'DIAPER' | 'SLEEP' | 'GROWTH' | 'OTHER';
 
 export interface ActivityType {
   id: string;
@@ -14,7 +14,7 @@ export interface ActivityEntry {
   id: string;
   typeId: string;
   timestamp: number;
-  value?: number; // Volume in ml, or duration in minutes
+  value?: number; // Volume in ml, duration in minutes, weight in kg, etc.
   note?: string;
 }
 
