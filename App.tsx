@@ -74,7 +74,7 @@ const App: React.FC = () => {
   const performSync = useCallback(async () => {
     const key = localStorage.getItem('tiny_steps_sync_key');
     if (!key) return;
-    
+
     setIsSyncing(true);
     try {
       // 1. Pull latest from cloud
@@ -82,7 +82,7 @@ const App: React.FC = () => {
       if (cloudData) {
         handleSyncData(cloudData);
       }
-      
+
       // 2. Push current (now merged) state back to cloud
       await syncService.push(key, {
         entries,
@@ -98,34 +98,29 @@ const App: React.FC = () => {
     }
   }, [entries, types, babyName]);
 
-  // Try to sync on load if key exists
-  useEffect(() => {
-    const key = localStorage.getItem('tiny_steps_sync_key');
-    if (key) performSync();
-  }, []);
 
   return (
     <Router>
       <Layout>
         <Routes>
           <Route path="/" element={
-            <Dashboard 
+            <Dashboard
               babyName={babyName}
-              entries={entries} 
-              types={types} 
-              onSyncNow={performSync} 
-              isSyncing={isSyncing} 
+              entries={entries}
+              types={types}
+              onSyncNow={performSync}
+              isSyncing={isSyncing}
             />
           } />
           <Route path="/log" element={<ActivityLog types={types} onAdd={addEntry} />} />
           <Route path="/history" element={<History entries={entries} types={types} onDelete={deleteEntry} />} />
           <Route path="/settings" element={
-            <Settings 
+            <Settings
               babyName={babyName}
               onUpdateBabyName={setBabyName}
-              types={types} 
-              entries={entries} 
-              onAddType={addType} 
+              types={types}
+              entries={entries}
+              onAddType={addType}
               onRemoveType={removeType}
               onSyncData={handleSyncData}
             />
